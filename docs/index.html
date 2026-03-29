@@ -283,7 +283,7 @@ function getPalette(name){
 }
 
 // ===== STATE =====
-let sourceImage=null,croppedImage=null,currentBrand='artkal',allResults={},highlightCode=null;
+let sourceImage=null,croppedImage=null,currentBrand='artkal',allResults={},highlightCodes=new Set();
 const SIZES=[
   {size:29,label:'29×29',desc:'1板',emoji:'🟢'},
   {size:48,label:'48×48',desc:'3板',emoji:'🔵'},
@@ -385,16 +385,17 @@ function renderPreviewCanvas(canvas,result,maxPx){
 }
 
 // ===== RENDER FULL CANVAS (with highlight support) =====
-function renderFullCanvas(canvas,result,clean,hlCode){
+function renderFullCanvas(canvas,result,clean,hlSet){
   const{grid,size}=result;
   const cellSize=Math.max(8,Math.min(24,Math.floor(2400/size)));
   const margin=clean?4:30;
   const w=margin+size*cellSize+4,h=margin+size*cellSize+4;
   canvas.width=w;canvas.height=h;const ctx=canvas.getContext('2d');
   ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);
+  const hasHL=hlSet&&hlSet.size>0;
   for(let y=0;y<size;y++)for(let x=0;x<size;x++){
     const c=grid[y][x];
-    if(hlCode&&c.code!==hlCode){ctx.fillStyle='#e8e8e8';ctx.fillRect(margin+x*cellSize,margin+y*cellSize,cellSize,cellSize);ctx.fillStyle='rgba(200,200,200,0.3)';ctx.fillRect(margin+x*cellSize,margin+y*cellSize,cellSize,cellSize)}
+    if(hasHL&&!hlSet.has(c.code)){ctx.fillStyle='#e8e8e8';ctx.fillRect(margin+x*cellSize,margin+y*cellSize,cellSize,cellSize);ctx.fillStyle='rgba(200,200,200,0.3)';ctx.fillRect(margin+x*cellSize,margin+y*cellSize,cellSize,cellSize)}
     else{ctx.fillStyle=c.hex;ctx.fillRect(margin+x*cellSize,margin+y*cellSize,cellSize,cellSize)}
   }
   ctx.strokeStyle='rgba(0,0,0,0.1)';ctx.lineWidth=.5;
@@ -406,7 +407,7 @@ function renderFullCanvas(canvas,result,clean,hlCode){
     for(let i=0;i<size;i++)if((i+1)%5===0||i===0)ctx.fillText(String(i+1),margin+i*cellSize+cellSize/2,margin-3);
     ctx.textAlign='right';ctx.textBaseline='middle';
     for(let i=0;i<size;i++)if((i+1)%5===0||i===0)ctx.fillText(String(i+1),margin-4,margin+i*cellSize+cellSize/2);
-    if(cellSize>=14){ctx.font=`${Math.max(6,cellSize/3)}px monospace`;ctx.textAlign='center';ctx.textBaseline='middle';for(let y=0;y<size;y++)for(let x=0;x<size;x++){const c=grid[y][x];if(hlCode&&c.code!==hlCode)continue;ctx.fillStyle=(c.r*.299+c.g*.587+c.b*.114)>128?'rgba(0,0,0,0.6)':'rgba(255,255,255,0.7)';ctx.fillText(c.code,margin+x*cellSize+cellSize/2,margin+y*cellSize+cellSize/2)}}
+    if(cellSize>=14){ctx.font=`${Math.max(6,cellSize/3)}px monospace`;ctx.textAlign='center';ctx.textBaseline='middle';for(let y=0;y<size;y++)for(let x=0;x<size;x++){const c=grid[y][x];if(hasHL&&!hlSet.has(c.code))continue;ctx.fillStyle=(c.r*.299+c.g*.587+c.b*.114)>128?'rgba(0,0,0,0.6)':'rgba(255,255,255,0.7)';ctx.fillText(c.code,margin+x*cellSize+cellSize/2,margin+y*cellSize+cellSize/2)}}
   }
 }
 
@@ -460,14 +461,14 @@ async function generateAll(){
 // ===== MODAL WITH HIGHLIGHT =====
 function openModal(size){
   const result=allResults[size];if(!result)return;
-  currentModal=result;highlightCode=null;
+  currentModal=result;highlightCodes.clear();
   const clean=document.getElementById('cleanMode')?document.getElementById('cleanMode').checked:false;
   const canvas=document.getElementById('modalCanvas');
-  renderFullCanvas(canvas,result,clean,null);
+  renderFullCanvas(canvas,result,clean,highlightCodes);
   const palette=getPalette(result.brand),pMap=Object.fromEntries(palette.map(c=>[c.code,c]));
   const total=size*size,boards=Math.ceil(size/29)**2;
   document.getElementById('modalTitle').textContent=`${size}×${size} · ${PALETTES[result.brand].brandCn}`;
-  document.getElementById('modalSummary').innerHTML=`${total.toLocaleString()} 颗豆 · ${result.colorCounts.size} 色 · ${boards} 板 · ${PALETTES[result.brand].beadSize}<br><span style="font-size:11px;color:#ff6b6b">💡 点击颜色可高亮拼装位置</span>`;
+  document.getElementById('modalSummary').innerHTML=`${total.toLocaleString()} 颗豆 · ${result.colorCounts.size} 色 · ${boards} 板 · ${PALETTES[result.brand].beadSize}<br><span style="font-size:11px;color:#ff6b6b">💡 点击颜色可多选高亮拼装位置</span>`;
   const sorted=[...result.colorCounts.entries()].sort((a,b)=>b[1]-a[1]);
   document.getElementById('modalMatList').innerHTML=sorted.map(([code,count])=>{const c=pMap[code];if(!c)return'';return`<div class="mat-row" data-code="${code}" onclick="toggleHighlight('${code}')"><div class="mat-focus-icon">🎯</div><div class="mat-swatch" style="background:${c.hex}"></div><span class="mat-code">${code}</span><span class="mat-name">${c.nameCn}</span><span class="mat-count">${count}</span></div>`}).join('');
   document.getElementById('modalBg').style.display='flex';
@@ -475,11 +476,11 @@ function openModal(size){
 function toggleHighlight(code){
   if(!currentModal)return;
   const clean=document.getElementById('cleanMode')?document.getElementById('cleanMode').checked:false;
-  if(highlightCode===code){highlightCode=null}else{highlightCode=code}
-  renderFullCanvas(document.getElementById('modalCanvas'),currentModal,clean,highlightCode);
-  document.querySelectorAll('#modalMatList .mat-row').forEach(r=>{r.classList.toggle('mat-active',r.dataset.code===highlightCode)});
+  if(highlightCodes.has(code)){highlightCodes.delete(code)}else{highlightCodes.add(code)}
+  renderFullCanvas(document.getElementById('modalCanvas'),currentModal,clean,highlightCodes);
+  document.querySelectorAll('#modalMatList .mat-row').forEach(r=>{r.classList.toggle('mat-active',highlightCodes.has(r.dataset.code))});
 }
-function closeModal(){document.getElementById('modalBg').style.display='none';highlightCode=null}
+function closeModal(){document.getElementById('modalBg').style.display='none';highlightCodes.clear()}
 function downloadPng(){
   if(!currentModal)return;
   const canvas=document.getElementById('modalCanvas');
