@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PixelBead - 拼豆图案生成器</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f5f5f7;color:#1d1d1f;min-height:100vh;display:flex;flex-direction:column}
+header{background:#fff;border-bottom:1px solid #e5e5e5;padding:16px 24px;text-align:center}
+header h1{font-size:24px;font-weight:700}
+header h1 span{color:#ff6b6b}
+header p{color:#86868b;font-size:14px;margin-top:4px}
+.container{max-width:1200px;margin:0 auto;padding:20px;flex:1;width:100%}
+.upload-zone{border:2px dashed #d2d2d7;border-radius:16px;padding:48px;text-align:center;cursor:pointer;transition:all .2s;background:#fff;margin-bottom:20px}
+.upload-zone:hover,.upload-zone.drag-over{border-color:#ff6b6b;background:#fff5f5}
+.upload-zone p{color:#86868b;font-size:16px}
+.upload-zone .icon{font-size:48px;margin-bottom:12px}
+.upload-zone input{display:none}
+.controls{background:#fff;border-radius:16px;padding:20px;margin-bottom:20px;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px}
+.control-group{display:flex;flex-direction:column;gap:4px}
+.control-group label{font-size:13px;font-weight:600;color:#86868b;text-transform:uppercase;letter-spacing:.5px}
+.control-group select,.control-group input[type=range]{width:100%;padding:8px;border:1px solid #d2d2d7;border-radius:8px;font-size:14px;background:#fff}
+.control-group select{appearance:none;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2386868b' fill='none' stroke-width='2'/%3E%3C/svg%3E") no-repeat right 10px center #fff}
+.range-val{font-size:13px;color:#1d1d1f;font-weight:500}
+.toggle-row{display:flex;align-items:center;gap:8px;padding-top:8px}
+.toggle-row label{font-size:14px;color:#1d1d1f;cursor:pointer;display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;font-weight:400}
+.btn-row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px}
+.btn{padding:10px 24px;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;transition:all .2s}
+.btn-primary{background:#ff6b6b;color:#fff}.btn-primary:hover{background:#e55a5a}
+.btn-secondary{background:#e5e5ea;color:#1d1d1f}.btn-secondary:hover{background:#d1d1d6}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.output{display:flex;gap:20px;flex-wrap:wrap}
+.preview-wrap{flex:1;min-width:300px;background:#fff;border-radius:16px;padding:16px;text-align:center}
+.preview-wrap canvas{max-width:100%;height:auto;border-radius:8px;image-rendering:pixelated}
+.materials-panel{width:320px;background:#fff;border-radius:16px;padding:16px;max-height:600px;overflow-y:auto}
+.materials-panel h3{margin-bottom:12px;font-size:16px}
+.mat-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f0f0f0;font-size:13px}
+.mat-swatch{width:20px;height:20px;border-radius:4px;border:1px solid #e5e5e5;flex-shrink:0}
+.mat-code{font-weight:600;width:50px}
+.mat-name{flex:1;color:#86868b}
+.mat-count{font-weight:600;text-align:right;width:50px}
+.mat-pct{color:#86868b;width:40px;text-align:right}
+.summary{font-size:13px;color:#86868b;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #e5e5e5}
+footer{text-align:center;padding:20px;color:#86868b;font-size:13px;border-top:1px solid #e5e5e5;background:#fff;margin-top:auto}
+footer a{color:#ff6b6b;text-decoration:none}
+.hidden{display:none}
+.loading{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:999}
+.loading-inner{background:#fff;padding:32px;border-radius:16px;text-align:center;font-size:16px}
+.spinner{width:40px;height:40px;border:3px solid #e5e5e5;border-top-color:#ff6b6b;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media(max-width:768px){.output{flex-direction:column}.materials-panel{width:100%}.controls{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<header>
+<h1>🎨 Pixel<span>Bead</span></h1>
+<p>拼豆图案生成器 — 上传图片，生成拼豆模板</p>
+</header>
+<div class="container">
+<div class="upload-zone" id="dropZone">
+<div class="icon">📸</div>
+<p>拖拽图片到这里，或点击上传</p>
+<input type="file" id="fileInput" accept="image/*">
+</div>
+<div class="controls">
+<div class="control-group">
+<label>品牌 Brand</label>
+<select id="brand">
+<option value="artkal">Artkal (C系列 2.6mm)</option>
+<option value="hama">Hama (midi 5mm)</option>
+<option value="perler">Perler (5mm)</option>
+<option value="mard">咪小窝 MARD (2.6mm)</option>
+<option value="coco">可可 COCO (2.6mm)</option>
+</select>
+</div>
+<div class="control-group">
+<label>尺寸 Board Size</label>
+<select id="boardSize">
+<option value="29">29×29 (1板)</option>
+<option value="39">39×39 (2板)</option>
+<option value="48">48×48 (3板)</option>
+<option value="58">58×58 (4板)</option>
+<option value="80">80×80 (8板)</option>
+<option value="100" selected>100×100 (12板) ⭐</option>
+<option value="120">120×120 (17板)</option>
+<option value="150">150×150 (27板)</option>
+<option value="200">200×200 (48板)</option>
+</select>
+</div>
+<div class="control-group">
+<label>最大颜色数 <span class="range-val" id="maxColorsVal">30</span></label>
+<input type="range" id="maxColors" min="5" max="80" value="30">
+</div>
+<div class="control-group">
+<div class="toggle-row">
+<label><input type="checkbox" id="outline" checked> 描边增强</label>
+</div>
+<div class="toggle-row">
+<label><input type="checkbox" id="noiseClean" checked> 降噪清理</label>
+</div>
+<div class="toggle-row">
+<label><input type="checkbox" id="cleanMode"> 纯净模式 (无标注)</label>
+</div>
+</div>
+</div>
+<div class="btn-row">
+<button class="btn btn-primary" id="generateBtn" disabled>生成拼豆图 Generate</button>
+<button class="btn btn-secondary" id="downloadPng" disabled>下载 PNG</button>
+<button class="btn btn-secondary" id="downloadPdf" disabled>下载 PDF</button>
+</div>
+<div class="output hidden" id="outputSection">
+<div class="preview-wrap">
+<canvas id="previewCanvas"></canvas>
+</div>
+<div class="materials-panel" id="materialsPanel">
+<h3>🧱 材料清单</h3>
+<div class="summary" id="summaryInfo"></div>
+<div id="materialsList"></div>
+</div>
+</div>
+</div>
+<div class="loading hidden" id="loadingOverlay">
+<div class="loading-inner"><div class="spinner"></div>生成中...</div>
+</div>
+<footer>
+Built with 🤖 <a href="https://autoglm.zhipuai.cn/autoclaw/" target="_blank">AutoClaw</a> ·
+<a href="https://github.com/Starrylyn/autoclaw-pixelbead-cli" target="_blank">GitHub</a> ·
+<a href="https://www.npmjs.com/package/autoclaw-pixelbead-cli" target="_blank">npm</a>
+</footer>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
+<script>
+// ===== PALETTE DATA (exact copy from CLI source) =====
+const PALETTES = {"artkal":{"brandCn":"Artkal","beadSize":"2.6mm","colors":[["C-1","White","白色","#FFFFFF"],["C-2","Cream White","乳白色","#FFF8E7"],["C-3","Ivory","象牙白","#F5F0DC"],["C-4","Light Yellow","浅黄色","#FFF5A0"],["C-5","Yellow","黄色","#FFE600"],["C-6","Golden Yellow","金黄色","#FFC800"],["C-7","Dark Yellow","深黄色","#F0A800"],["C-8","Warm Yellow","暖黄色","#FFD23F"],["C-9","Light Orange","浅橙色","#FFA552"],["C-10","Orange","橙色","#FF8C00"],["C-11","Dark Orange","深橙色","#E06800"],["C-12","Tangerine","橘红色","#FF6020"],["C-13","Light Red","浅红色","#FF6B6B"],["C-14","Red","红色","#E60012"],["C-15","Dark Red","深红色","#B80020"],["C-16","Wine Red","酒红色","#8B1A2B"],["C-17","Crimson","绯红色","#D0021B"],["C-18","Light Pink","浅粉色","#FFB6C1"],["C-19","Pink","粉色","#FF69B4"],["C-20","Hot Pink","艳粉色","#FF1493"],["C-21","Rose Pink","玫瑰粉","#F4758E"],["C-22","Salmon Pink","鲑鱼粉","#F7A4A4"],["C-23","Lavender","薰衣草紫","#C4A6D7"],["C-24","Light Purple","浅紫色","#A478B8"],["C-25","Purple","紫色","#7B2D8E"],["C-26","Dark Purple","深紫色","#5B1D6E"],["C-27","Plum","梅紫色","#6E2570"],["C-28","Magenta","洋红色","#CC0066"],["C-29","Light Blue","浅蓝色","#87CEEB"],["C-30","Sky Blue","天蓝色","#5DADEC"],["C-31","Blue","蓝色","#2962FF"],["C-32","Royal Blue","皇家蓝","#1A45AC"],["C-33","Dark Blue","深蓝色","#0D2B6B"],["C-34","Navy Blue","海军蓝","#0A1F5C"],["C-35","Cyan","青色","#00BCD4"],["C-36","Turquoise","绿松石色","#30D5C8"],["C-37","Powder Blue","粉蓝色","#B4D7E8"],["C-38","Light Green","浅绿色","#90EE90"],["C-39","Lime Green","柠檬绿","#7BC74D"],["C-40","Green","绿色","#2E8B57"],["C-41","Dark Green","深绿色","#1B5E20"],["C-42","Forest Green","森林绿","#228B22"],["C-43","Olive Green","橄榄绿","#6B8E23"],["C-44","Mint Green","薄荷绿","#98FF98"],["C-45","Teal","凋绿色","#008080"],["C-46","Yellow Green","黄绿色","#ADDF3C"],["C-47","Light Brown","浅棕色","#C8A96E"],["C-48","Brown","棕色","#8B5E3C"],["C-49","Dark Brown","深棕色","#5C3317"],["C-50","Chocolate","巧克力色","#7B3F00"],["C-51","Tan","棕褐色","#D2B48C"],["C-52","Coffee","咖啡色","#6F4E37"],["C-53","Light Skin","浅肤色","#FFE0BD"],["C-54","Peach","桃肉色","#FFDAB9"],["C-55","Skin","肤色","#E8B88A"],["C-56","Dark Skin","深肤色","#C68E5B"],["C-57","Sand","沙色","#DFC5A0"],["C-58","Light Gray","浅灰色","#D3D3D3"],["C-59","Gray","灰色","#A0A0A0"],["C-60","Dark Gray","深灰色","#696969"],["C-61","Charcoal","炭灰色","#464646"],["C-62","Ash Gray","火山灰","#B2BEB5"],["C-63","Black","黑色","#1A1A1A"],["C-64","Jet Black","亮黑色","#0A0A0A"],["C-65","Coral","珊瑚色","#FF7F50"],["C-66","Rust","铁锈红","#B7410E"],["C-67","Terracotta","赫石色","#CC4E3C"],["C-68","Pastel Blue","粉彩蓝","#AEC6CF"],["C-69","Pastel Green","粉彩绿","#B2E6B2"],["C-70","Pastel Yellow","粉彩黄","#FFFACD"],["C-71","Pastel Pink","粉彩粉","#FFD1DC"],["C-72","Pastel Purple","粉彩紫","#D8B4E2"],["C-73","Neon Green","荧光绿","#39FF14"],["C-74","Neon Orange","荧光橙","#FF6600"],["C-75","Neon Pink","荧光粉","#FF10F0"],["C-76","Neon Yellow","荧光黄","#DFFF00"],["C-77","Gold","金色","#CFB53B"],["C-78","Silver","银色","#C0C0C0"],["C-79","Khaki","卡其色","#BDB76B"],["C-80","Slate Blue","石板蓝","#6A5ACD"]]},"hama":{"brandCn":"Hama","beadSize":"5mm","colors":[["H-01","White","白色","#FFFFFF"],["H-02","Cream","奶油色","#F5E6C8"],["H-70","Light Gray","浅灰色","#C4C4C4"],["H-17","Gray","灰色","#8E8E8E"],["H-71","Dark Gray","深灰色","#5B5B5B"],["H-18","Black","黑色","#1A1A1A"],["H-05","Red","红色","#CC0000"],["H-22","Dark Red","深红色","#8B0000"],["H-13","Transparent Red","透明红色","#E60000"],["H-35","Neon Red","荧光红色","#FF2244"],["H-44","Pastel Red","淡红色","#F28C8C"],["H-04","Orange","橙色","#FF6600"],["H-38","Neon Orange","荧光橙色","#FF5522"],["H-79","Tan","棕褐色","#D2A060"],["H-03","Yellow","黄色","#FFE600"],["H-14","Transparent Yellow","透明黄色","#FFF000"],["H-34","Neon Yellow","荧光黄色","#E8FF00"],["H-43","Pastel Yellow","淡黄色","#FFF5A0"],["H-60","Teddy Bear Brown","泰迪熊棕色","#C89640"],["H-10","Green","绿色","#009933"],["H-11","Light Green","浅绿色","#66CC33"],["H-28","Dark Green","深绿色","#005C29"],["H-47","Pastel Green","淡绿色","#A8E6A0"],["H-37","Neon Green","荧光绿色","#44FF00"],["H-16","Transparent Green","透明绿色","#33CC66"],["H-84","Olive","橄榄色","#808000"],["H-102","Forest Green","森林绿色","#2B6E2B"],["H-08","Blue","蓝色","#0033CC"],["H-09","Light Blue","浅蓝色","#66CCFF"],["H-15","Transparent Blue","透明蓝色","#3399FF"],["H-36","Neon Blue","荧光蓝色","#0088FF"],["H-46","Pastel Blue","淡蓝色","#A0C8F0"],["H-48","Pastel Dark Blue","淡深蓝色","#7090C0"],["H-63","Dark Blue","深蓝色","#001A66"],["H-73","Azure","天蓝色","#0080C0"],["H-07","Purple","紫色","#660099"],["H-24","Plum","梅红色","#993366"],["H-45","Pastel Purple","淡紫色","#D1A0E0"],["H-74","Dark Purple","深紫色","#440066"],["H-06","Pink","粉色","#FF99CC"],["H-69","Pastel Pink","淡粉色","#FFB8D0"],["H-72","Dark Pink","深粉色","#E05080"],["H-33","Neon Pink","荧光粉色","#FF3399"],["H-85","Magenta","洋红色","#CC0066"],["H-20","Brown","棕色","#8B4513"],["H-12","Light Brown","浅棕色","#C4883C"],["H-30","Dark Brown","深棕色","#4A2800"],["H-26","Flesh","肤色","#F5C8A8"],["H-56","Skin Tan","蜜桃肤色","#E0A878"],["H-78","Light Skin","浅肤色","#FFE0C0"],["H-58","Dark Skin","深肤色","#A06030"],["H-95","Pastel Lilac","淡丁香色","#C8A8E8"],["H-96","Pastel Mint","淡薄荷色","#B0F0D0"],["H-97","Pastel Coral","淡珊瑚色","#FFB0A0"],["H-98","Pastel Peach","淡桃色","#FFD8B8"],["H-39","Neon Lime","荧光青柠色","#CCFF00"],["H-42","Fluorescent Orange","荧光亮橙色","#FF8800"],["H-19","Transparent","透明","#F0F0F0"],["H-53","Transparent Purple","透明紫色","#9933CC"],["H-54","Transparent Dark Blue","透明深蓝色","#2244AA"],["H-55","Glow in the Dark","夜光色","#E8FFD0"],["H-61","Gold","金色","#D4A830"],["H-62","Silver","银色","#C0C0C0"],["H-64","Bronze","青铜色","#B08040"]]},"perler":{"brandCn":"Perler","beadSize":"5mm","colors":[["P-01","White","白色","#F4F4F4"],["P-02","Cream","奶油色","#F5E6C8"],["P-03","Ivory","象牙白","#F0EAD6"],["P-04","Yellow","黄色","#FFD500"],["P-05","Pastel Yellow","淡黄色","#FFF4A3"],["P-06","Cheddar","切达黄","#FFB81C"],["P-07","Butterscotch","奶油糖色","#E39B3F"],["P-08","Orange","橙色","#FF6A13"],["P-09","Hot Coral","热珊瑚色","#FF4040"],["P-10","Tangerine","橘红色","#FF9933"],["P-11","Red","红色","#D32027"],["P-12","Cherry","樱桃红","#A51C30"],["P-13","Raspberry","覆盆子红","#C4215A"],["P-14","Rust","铁锈色","#A0522D"],["P-15","Pink","粉色","#F7A4B7"],["P-16","Bubblegum","泡泡糖粉","#F9629F"],["P-17","Magenta","品红色","#D6196B"],["P-18","Flamingo","火烈鸟粉","#F8888B"],["P-19","Pastel Pink","淡粉色","#FCCCD4"],["P-20","Blush","腮红色","#E8A0A0"],["P-21","Purple","紫色","#6B3FA0"],["P-22","Plum","梅紫色","#7D3F6B"],["P-23","Lavender","薰衣草紫","#B6A1C8"],["P-24","Pastel Lavender","淡薰衣草紫","#D9C6E3"],["P-25","Grape","葡萄紫","#5C2D82"],["P-26","Dark Blue","深蓝色","#1B3A73"],["P-27","Blue","蓝色","#2E5FAC"],["P-28","Light Blue","浅蓝色","#7EC8E3"],["P-29","Pastel Blue","淡蓝色","#C3E0F0"],["P-30","Toothpaste","牙膏蓝","#78D1E1"],["P-31","Cyan","青色","#00A5BD"],["P-32","Robin Egg","知更鸟蛋蓝","#5EB5C9"],["P-33","Cobalt","钴蓝色","#1338BE"],["P-34","Dark Green","深绿色","#1B5E20"],["P-35","Green","绿色","#30A548"],["P-36","Bright Green","亮绿色","#4CBB17"],["P-37","Lime","青柠绿","#A2C523"],["P-38","Olive","橄榄绿","#6B702A"],["P-39","Evergreen","常青绿","#2A5A28"],["P-40","Shamrock","三叶草绿","#009B48"],["P-41","Pastel Green","淡绿色","#B7E4C7"],["P-42","Kiwi Lime","猕猴桃绿","#C5D63D"],["P-43","Brown","棕色","#6D3B1E"],["P-44","Dark Brown","深棕色","#3E2117"],["P-45","Light Brown","浅棕色","#A67B5B"],["P-46","Tan","棕褐色","#C4A56E"],["P-47","Sand","沙色","#D8C3A5"],["P-48","Peach","桃肤色","#FFCBA4"],["P-49","Skin","肤色","#E5B98A"],["P-50","Fawn","浅褐肤色","#C8946A"],["P-51","Cocoa","可可肤色","#7B4B2A"],["P-52","Gingerbread","姜饼肤色","#9A5B2F"],["P-53","Light Gray","浅灰色","#C0C0C0"],["P-54","Gray","灰色","#8E8E8E"],["P-55","Charcoal","炭灰色","#5A5A5A"],["P-56","Dark Gray","深灰色","#3D3D3D"],["P-57","Black","黑色","#1A1A1A"],["P-58","Gold","金色","#D4AF37"],["P-59","Silver","银色","#AAA9AD"],["P-60","Bronze","青铜色","#CD7F32"],["P-61","Periwinkle","长春花蓝","#7B7FC0"],["P-62","Turquoise","绿松石色","#20B2AA"],["P-63","Teal","蓝绿色","#007E7A"],["P-64","Honey","蜂蜜色","#E8A317"],["P-65","Prickly Pear","仙人掌果色","#DA4167"]]},"mard":{"brandCn":"咪小窝","beadSize":"2.6mm","colors":[["M-01","White","白色","#FFFFFF"],["M-02","Cream White","奶白","#FAF0E6"],["M-03","Ivory","象牙白","#FFFFF0"],["M-04","Pearl White","珍珠白","#F5F5F0"],["M-05","Black","黑色","#1A1A1A"],["M-06","Dark Gray","深灰","#4A4A4A"],["M-07","Medium Gray","中灰","#808080"],["M-08","Light Gray","浅灰","#C0C0C0"],["M-09","Silver Gray","银灰","#A8A8A8"],["M-10","Red","红色","#E60012"],["M-11","Dark Red","暗红","#8B0000"],["M-12","Crimson","绛红","#B22222"],["M-13","Vermilion","朱红","#E34234"],["M-14","Wine Red","酒红","#722F37"],["M-15","Orange","橙色","#FF8C00"],["M-16","Orange Red","橘红","#FF4500"],["M-17","Apricot","杏色","#FBCEB1"],["M-18","Tangerine","橘黄","#FF9F00"],["M-19","Yellow","黄色","#FFD700"],["M-20","Lemon Yellow","柠檬黄","#FFF44F"],["M-21","Light Yellow","浅黄","#FFFFE0"],["M-22","Golden Yellow","金黄","#FFB800"],["M-23","Mustard Yellow","芥末黄","#E1AD01"],["M-24","Green","绿色","#00A550"],["M-25","Grass Green","草绿","#7CFC00"],["M-26","Dark Green","深绿","#006400"],["M-27","Mint Green","薄荷绿","#98FB98"],["M-28","Olive Green","橄榄绿","#556B2F"],["M-29","Emerald","翡翠绿","#009B6D"],["M-30","Sage Green","灰绿","#87AE73"],["M-31","Blue","蓝色","#0066CC"],["M-32","Sky Blue","天蓝","#87CEEB"],["M-33","Dark Blue","深蓝","#003366"],["M-34","Royal Blue","宝蓝","#4169E1"],["M-35","Navy Blue","藏蓝","#001F5B"],["M-36","Light Blue","浅蓝","#ADD8E6"],["M-37","Cyan","青色","#00CED1"],["M-38","Purple","紫色","#800080"],["M-39","Lavender","薰衣草紫","#B57EDC"],["M-40","Dark Purple","深紫","#4B0082"],["M-41","Violet","堇紫","#7F00FF"],["M-42","Lilac","丁香紫","#C8A2C8"],["M-43","Pink","粉色","#FFB6C1"],["M-44","Rose Red","玫红","#E60073"],["M-45","Hot Pink","亮粉","#FF69B4"],["M-46","Peach Pink","桃粉","#FFCBA4"],["M-47","Coral Pink","珊瑚粉","#F88379"],["M-48","Cherry Blossom","樱花粉","#FFB7C5"],["M-49","Brown","棕色","#8B4513"],["M-50","Dark Brown","深棕","#5C3317"],["M-51","Light Brown","浅棕","#C4A882"],["M-52","Chocolate","巧克力","#7B3F00"],["M-53","Coffee","咖啡色","#6F4E37"],["M-54","Light Skin","浅肤色","#FFE0BD"],["M-55","Skin","肤色","#F5C5A3"],["M-56","Dark Skin","深肤色","#D2956A"],["M-57","Tan","小麦色","#C6956E"],["M-58","Pastel Pink","粉彩粉","#FFD1DC"],["M-59","Pastel Blue","粉彩蓝","#AEC6CF"],["M-60","Pastel Green","粉彩绿","#B2E6B2"],["M-61","Pastel Yellow","粉彩黄","#FDFD96"],["M-62","Pastel Purple","粉彩紫","#D8B2D8"],["M-63","Fluorescent Green","荧光绿","#39FF14"],["M-64","Fluorescent Pink","荧光粉","#FF6EC7"],["M-65","Fluorescent Orange","荧光橙","#FF5F15"],["M-66","Fluorescent Yellow","荧光黄","#CCFF00"],["M-67","Transparent","透明","#F0F0F0"],["M-68","Glow in Dark","夜光","#E8F5E9"]]},"coco":{"brandCn":"可可","beadSize":"2.6mm","colors":[["K-01","White","白色","#FEFEFE"],["K-02","Cream White","奶白","#F8ECD8"],["K-03","Ivory","象牙白","#FAEFD2"],["K-04","Snow White","雪白","#F9F6F0"],["K-05","Black","黑色","#1C1C1C"],["K-06","Dark Gray","深灰","#505050"],["K-07","Medium Gray","中灰","#7E7E7E"],["K-08","Light Gray","浅灰","#BEBEBE"],["K-09","Ash Gray","烟灰","#9A9A9A"],["K-10","Red","红色","#E20A15"],["K-11","Dark Red","暗红","#880808"],["K-12","Crimson","绛红","#AF1E2D"],["K-13","Vermilion","朱红","#E04030"],["K-14","Wine Red","酒红","#6E2C3A"],["K-15","Orange","橙色","#FF8800"],["K-16","Orange Red","橘红","#FF4010"],["K-17","Apricot","杏色","#F7C5A0"],["K-18","Tangerine","橘黄","#FFA020"],["K-19","Yellow","黄色","#FFD200"],["K-20","Lemon Yellow","柠檬黄","#FFF033"],["K-21","Light Yellow","浅黄","#FFFDD0"],["K-22","Golden Yellow","金黄","#FFAE00"],["K-23","Mustard Yellow","芥末黄","#D4A017"],["K-24","Green","绿色","#00A34E"],["K-25","Grass Green","草绿","#76D72D"],["K-26","Dark Green","深绿","#005E20"],["K-27","Mint Green","薄荷绿","#90EE90"],["K-28","Olive Green","橄榄绿","#4F6228"],["K-29","Emerald","翡翠绿","#009060"],["K-30","Teal Green","蓝绿","#008080"],["K-31","Blue","蓝色","#0060C0"],["K-32","Sky Blue","天蓝","#82CAE2"],["K-33","Dark Blue","深蓝","#002E5D"],["K-34","Royal Blue","宝蓝","#3D5FCC"],["K-35","Navy Blue","藏蓝","#002050"],["K-36","Light Blue","浅蓝","#A3D1E6"],["K-37","Cyan","青色","#00C5CD"],["K-38","Purple","紫色","#7D0075"],["K-39","Lavender","薰衣草紫","#AB7CC5"],["K-40","Dark Purple","深紫","#440066"],["K-41","Violet","堇紫","#7C00E0"],["K-42","Lilac","丁香紫","#C5A3C9"],["K-43","Pink","粉色","#FFB0BC"],["K-44","Rose Red","玫红","#E00068"],["K-45","Hot Pink","亮粉","#FF5DAA"],["K-46","Peach Pink","桃粉","#FFC4A8"],["K-47","Coral Pink","珊瑚粉","#F58070"],["K-48","Cherry Blossom","樱花粉","#FFB2C0"],["K-49","Brown","棕色","#8B4720"],["K-50","Dark Brown","深棕","#5A3010"],["K-51","Light Brown","浅棕","#C2A57E"],["K-52","Chocolate","巧克力","#7A3B10"],["K-53","Coffee","咖啡色","#6D4C30"],["K-54","Light Skin","浅肤色","#FFDDB8"],["K-55","Skin","肤色","#F2C098"],["K-56","Dark Skin","深肤色","#CE9060"],["K-57","Tan","小麦色","#C09068"],["K-58","Pastel Pink","粉彩粉","#FFCDD5"],["K-59","Pastel Blue","粉彩蓝","#A8C0CF"],["K-60","Pastel Green","粉彩绿","#AEE2AE"],["K-61","Pastel Yellow","粉彩黄","#FAFA90"],["K-62","Pastel Purple","粉彩紫","#D4A8D4"],["K-63","Fluorescent Green","荧光绿","#33FF10"],["K-64","Fluorescent Pink","荧光粉","#FF60C0"],["K-65","Fluorescent Orange","荧光橙","#FF5500"],["K-66","Fluorescent Yellow","荧光黄","#C8FF00"],["K-67","Transparent","透明","#EEEEEE"],["K-68","Glow in Dark","夜光","#E5F2E5"]]}};
+
+// ===== COLOR SCIENCE (CIEDE2000, exact port from CLI) =====
+const REF_X=95.047,REF_Y=100,REF_Z=108.883,DEG2RAD=Math.PI/180,RAD2DEG=180/Math.PI,EPSILON=.008856,KAPPA=903.3;
+function rgbToLab(r,g,b){let rr=r/255,gg=g/255,bb=b/255;rr=rr>.04045?Math.pow((rr+.055)/1.055,2.4):rr/12.92;gg=gg>.04045?Math.pow((gg+.055)/1.055,2.4):gg/12.92;bb=bb>.04045?Math.pow((bb+.055)/1.055,2.4):bb/12.92;rr*=100;gg*=100;bb*=100;const x=rr*.4124564+gg*.3575761+bb*.1804375,y=rr*.2126729+gg*.7151522+bb*.072175,z=rr*.0193339+gg*.119192+bb*.9503041;let fx=x/REF_X,fy=y/REF_Y,fz=z/REF_Z;fx=fx>EPSILON?Math.cbrt(fx):(KAPPA*fx+16)/116;fy=fy>EPSILON?Math.cbrt(fy):(KAPPA*fy+16)/116;fz=fz>EPSILON?Math.cbrt(fz):(KAPPA*fz+16)/116;return{L:116*fy-16,a:500*(fx-fy),b:200*(fy-fz)}}
+function ciede2000(lab1,lab2){const{L:L1,a:a1,b:b1}=lab1,{L:L2,a:a2,b:b2}=lab2;const C1=Math.sqrt(a1*a1+b1*b1),C2=Math.sqrt(a2*a2+b2*b2),Cab=(C1+C2)/2,Cab7=Math.pow(Cab,7),G=.5*(1-Math.sqrt(Cab7/(Cab7+6103515625)));const a1p=a1*(1+G),a2p=a2*(1+G),C1p=Math.sqrt(a1p*a1p+b1*b1),C2p=Math.sqrt(a2p*a2p+b2*b2);let h1p=Math.atan2(b1,a1p)*RAD2DEG;if(h1p<0)h1p+=360;let h2p=Math.atan2(b2,a2p)*RAD2DEG;if(h2p<0)h2p+=360;const dLp=L2-L1,dCp=C2p-C1p;let dhp;if(C1p*C2p===0)dhp=0;else if(Math.abs(h2p-h1p)<=180)dhp=h2p-h1p;else if(h2p-h1p>180)dhp=h2p-h1p-360;else dhp=h2p-h1p+360;const dHp=2*Math.sqrt(C1p*C2p)*Math.sin(dhp/2*DEG2RAD),Lpm=(L1+L2)/2,Cpm=(C1p+C2p)/2;let hpm;if(C1p*C2p===0)hpm=h1p+h2p;else if(Math.abs(h1p-h2p)<=180)hpm=(h1p+h2p)/2;else if(h1p+h2p<360)hpm=(h1p+h2p+360)/2;else hpm=(h1p+h2p-360)/2;const T=1-.17*Math.cos((hpm-30)*DEG2RAD)+.24*Math.cos(2*hpm*DEG2RAD)+.32*Math.cos((3*hpm+6)*DEG2RAD)-.2*Math.cos((4*hpm-63)*DEG2RAD),Lsq=(Lpm-50)*(Lpm-50),SL=1+.015*Lsq/Math.sqrt(20+Lsq),SC=1+.045*Cpm,SH=1+.015*Cpm*T,Cpm7=Math.pow(Cpm,7),RC=2*Math.sqrt(Cpm7/(Cpm7+6103515625)),dT=30*Math.exp(-Math.pow((hpm-275)/25,2)),RT=-Math.sin(2*dT*DEG2RAD)*RC,tL=dLp/SL,tC=dCp/SC,tH=dHp/SH;return Math.sqrt(tL*tL+tC*tC+tH*tH+RT*tC*tH)}
+
+function hexToRgb(hex){const n=parseInt(hex.slice(1),16);return{r:(n>>16)&255,g:(n>>8)&255,b:n&255}}
+function parsePalette(name){const p=PALETTES[name];return p.colors.map(c=>{const rgb=hexToRgb(c[3]);return{code:c[0],nameEn:c[1],nameCn:c[2],hex:c[3],...rgb,lab:rgbToLab(rgb.r,rgb.g,rgb.b)}})}
+function findNearest(r,g,b,palette){const lab=rgbToLab(r,g,b);let best=palette[0],bestD=Infinity;for(const c of palette){const d=ciede2000(lab,c.lab);if(d<bestD){bestD=d;best=c}}return best}
+
+// ===== CORE PROCESSING =====
+let sourceImage=null, lastResult=null;
+
+function processImage(){
+  if(!sourceImage)return;
+  const size=+document.getElementById('boardSize').value;
+  const maxColors=+document.getElementById('maxColors').value;
+  const doOutline=document.getElementById('outline').checked;
+  const doNoise=document.getElementById('noiseClean').checked;
+  const cleanMode=document.getElementById('cleanMode').checked;
+  const brand=document.getElementById('brand').value;
+  const palette=parsePalette(brand);
+  
+  document.getElementById('loadingOverlay').classList.remove('hidden');
+  
+  setTimeout(()=>{
+    try{
+      // Resize image to grid
+      const offCanvas=document.createElement('canvas');
+      offCanvas.width=size;offCanvas.height=size;
+      const octx=offCanvas.getContext('2d');
+      octx.imageSmoothingEnabled=true;
+      octx.imageSmoothingQuality='high';
+      octx.drawImage(sourceImage,0,0,size,size);
+      const imgData=octx.getImageData(0,0,size,size);
+      const pixels=imgData.data;
+      
+      // Match colors
+      const grid=[];
+      const colorCounts=new Map();
+      for(let y=0;y<size;y++){
+        const row=[];
+        for(let x=0;x<size;x++){
+          const i=(y*size+x)*4;
+          const matched=findNearest(pixels[i],pixels[i+1],pixels[i+2],palette);
+          row.push(matched);
+          colorCounts.set(matched.code,(colorCounts.get(matched.code)||0)+1);
+        }
+        grid.push(row);
+      }
+      
+      // Limit colors
+      if(colorCounts.size>maxColors){
+        const sorted=[...colorCounts.entries()].sort((a,b)=>b[1]-a[1]);
+        const keep=new Set(sorted.slice(0,maxColors).map(e=>e[0]));
+        const keepPalette=palette.filter(c=>keep.has(c.code));
+        for(let y=0;y<size;y++){
+          for(let x=0;x<size;x++){
+            if(!keep.has(grid[y][x].code)){
+              grid[y][x]=findNearest(grid[y][x].r,grid[y][x].g,grid[y][x].b,keepPalette);
+            }
+          }
+        }
+        colorCounts.clear();
+        for(let y=0;y<size;y++)for(let x=0;x<size;x++)colorCounts.set(grid[y][x].code,(colorCounts.get(grid[y][x].code)||0)+1);
+      }
+      
+      // Noise cleaning (BFS)
+      if(doNoise&&size>=29){
+        const threshold=Math.max(2,Math.floor(size/15));
+        const visited=Array.from({length:size},()=>new Uint8Array(size));
+        for(let y=0;y<size;y++){
+          for(let x=0;x<size;x++){
+            if(visited[y][x])continue;
+            const code=grid[y][x].code;
+            const region=[];
+            const queue=[[x,y]];
+            visited[y][x]=1;
+            while(queue.length){
+              const[cx,cy]=queue.shift();
+              region.push([cx,cy]);
+              for(const[dx,dy]of[[-1,0],[1,0],[0,-1],[0,1]]){
+                const nx=cx+dx,ny=cy+dy;
+                if(nx>=0&&nx<size&&ny>=0&&ny<size&&!visited[ny][nx]&&grid[ny][nx].code===code){
+                  visited[ny][nx]=1;queue.push([nx,ny]);
+                }
+              }
+            }
+            if(region.length<threshold){
+              for(const[rx,ry]of region){
+                const neighbors=[];
+                for(const[dx,dy]of[[-1,0],[1,0],[0,-1],[0,1]]){
+                  const nx=rx+dx,ny=ry+dy;
+                  if(nx>=0&&nx<size&&ny>=0&&ny<size&&grid[ny][nx].code!==code)neighbors.push(grid[ny][nx]);
+                }
+                if(neighbors.length)grid[ry][rx]=neighbors[Math.floor(neighbors.length/2)];
+              }
+            }
+          }
+        }
+        colorCounts.clear();
+        for(let y=0;y<size;y++)for(let x=0;x<size;x++)colorCounts.set(grid[y][x].code,(colorCounts.get(grid[y][x].code)||0)+1);
+      }
+      
+      // Outline enhancement
+      if(doOutline){
+        const outGrid=grid.map(r=>[...r]);
+        for(let y=0;y<size;y++){
+          for(let x=0;x<size;x++){
+            const c=grid[y][x];
+            let isBorder=false;
+            for(const[dx,dy]of[[-1,0],[1,0],[0,-1],[0,1]]){
+              const nx=x+dx,ny=y+dy;
+              if(nx>=0&&nx<size&&ny>=0&&ny<size&&grid[ny][nx].code!==c.code){isBorder=true;break}
+            }
+            if(isBorder){
+              const darker=findNearest(Math.max(0,c.r-30),Math.max(0,c.g-30),Math.max(0,c.b-30),palette);
+              outGrid[y][x]=darker;
+            }
+          }
+        }
+        for(let y=0;y<size;y++)for(let x=0;x<size;x++)grid[y][x]=outGrid[y][x];
+        colorCounts.clear();
+        for(let y=0;y<size;y++)for(let x=0;x<size;x++)colorCounts.set(grid[y][x].code,(colorCounts.get(grid[y][x].code)||0)+1);
+      }
+      
+      lastResult={grid,size,colorCounts,brand,cleanMode};
+      renderCanvas(lastResult);
+      renderMaterials(lastResult);
+      document.getElementById('outputSection').classList.remove('hidden');
+      document.getElementById('downloadPng').disabled=false;
+      document.getElementById('downloadPdf').disabled=false;
+    }finally{
+      document.getElementById('loadingOverlay').classList.add('hidden');
+    }
+  },50);
+}
+
+function renderCanvas(result){
+  const{grid,size,cleanMode}=result;
+  const cellSize=Math.max(8,Math.min(24,Math.floor(2400/size)));
+  const margin=cleanMode?4:30;
+  const w=margin+size*cellSize+(cleanMode?4:4);
+  const h=margin+size*cellSize+(cleanMode?4:4);
+  const canvas=document.getElementById('previewCanvas');
+  canvas.width=w;canvas.height=h;
+  const ctx=canvas.getContext('2d');
+  ctx.fillStyle='#ffffff';ctx.fillRect(0,0,w,h);
+  
+  // Draw cells
+  for(let y=0;y<size;y++){
+    for(let x=0;x<size;x++){
+      ctx.fillStyle=grid[y][x].hex;
+      ctx.fillRect(margin+x*cellSize,margin+y*cellSize,cellSize,cellSize);
+    }
+  }
+  
+  // Grid lines
+  ctx.strokeStyle='rgba(0,0,0,0.15)';ctx.lineWidth=0.5;
+  for(let i=0;i<=size;i++){
+    ctx.beginPath();ctx.moveTo(margin+i*cellSize+.5,margin);ctx.lineTo(margin+i*cellSize+.5,margin+size*cellSize);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(margin,margin+i*cellSize+.5);ctx.lineTo(margin+size*cellSize,margin+i*cellSize+.5);ctx.stroke();
+  }
+  
+  // Board boundaries (29x29)
+  ctx.strokeStyle='rgba(0,0,0,0.5)';ctx.lineWidth=1.5;
+  for(let i=29;i<size;i+=29){
+    ctx.beginPath();ctx.moveTo(margin+i*cellSize,margin);ctx.lineTo(margin+i*cellSize,margin+size*cellSize);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(margin,margin+i*cellSize);ctx.lineTo(margin+size*cellSize,margin+i*cellSize);ctx.stroke();
+  }
+  
+  if(!cleanMode){
+    // Row/col numbers
+    ctx.fillStyle='#555';ctx.font=`${Math.min(11,cellSize-2)}px sans-serif`;
+    ctx.textAlign='center';ctx.textBaseline='bottom';
+    for(let i=0;i<size;i++){
+      if((i+1)%5===0||i===0)ctx.fillText(String(i+1),margin+i*cellSize+cellSize/2,margin-3);
+    }
+    ctx.textAlign='right';ctx.textBaseline='middle';
+    for(let i=0;i<size;i++){
+      if((i+1)%5===0||i===0)ctx.fillText(String(i+1),margin-4,margin+i*cellSize+cellSize/2);
+    }
+    
+    // Color codes in cells (only if cells big enough)
+    if(cellSize>=16){
+      ctx.font=`${Math.max(6,cellSize/3)}px monospace`;ctx.textAlign='center';ctx.textBaseline='middle';
+      for(let y=0;y<size;y++){
+        for(let x=0;x<size;x++){
+          const c=grid[y][x];
+          const lum=c.r*.299+c.g*.587+c.b*.114;
+          ctx.fillStyle=lum>128?'rgba(0,0,0,0.6)':'rgba(255,255,255,0.7)';
+          ctx.fillText(c.code,margin+x*cellSize+cellSize/2,margin+y*cellSize+cellSize/2);
+        }
+      }
+    }
+  }
+}
+
+function renderMaterials(result){
+  const{colorCounts,size,brand}=result;
+  const total=size*size;
+  const boards=Math.ceil(size/29)*Math.ceil(size/29);
+  const palette=parsePalette(brand);
+  const paletteMap=Object.fromEntries(palette.map(c=>[c.code,c]));
+  
+  document.getElementById('summaryInfo').innerHTML=
+    `${size}×${size} · ${total.toLocaleString()} 颗豆 · ${colorCounts.size} 色 · ${boards} 板 · ${PALETTES[brand].brandCn} ${PALETTES[brand].beadSize}`;
+  
+  const sorted=[...colorCounts.entries()].sort((a,b)=>b[1]-a[1]);
+  const html=sorted.map(([code,count])=>{
+    const c=paletteMap[code];
+    if(!c)return'';
+    const pct=(count/total*100).toFixed(1);
+    return `<div class="mat-row">
+      <div class="mat-swatch" style="background:${c.hex}"></div>
+      <span class="mat-code">${code}</span>
+      <span class="mat-name">${c.nameCn}</span>
+      <span class="mat-count">${count}</span>
+      <span class="mat-pct">${pct}%</span>
+    </div>`;
+  }).join('');
+  document.getElementById('materialsList').innerHTML=html;
+  
+  if(result.cleanMode)document.getElementById('materialsPanel').classList.add('hidden');
+  else document.getElementById('materialsPanel').classList.remove('hidden');
+}
+
+// ===== EVENT HANDLERS =====
+const dropZone=document.getElementById('dropZone');
+const fileInput=document.getElementById('fileInput');
+
+dropZone.addEventListener('click',()=>fileInput.click());
+dropZone.addEventListener('dragover',e=>{e.preventDefault();dropZone.classList.add('drag-over')});
+dropZone.addEventListener('dragleave',()=>dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop',e=>{e.preventDefault();dropZone.classList.remove('drag-over');if(e.dataTransfer.files[0])loadFile(e.dataTransfer.files[0])});
+fileInput.addEventListener('change',e=>{if(e.target.files[0])loadFile(e.target.files[0])});
+
+function loadFile(file){
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const img=new Image();
+    img.onload=()=>{
+      sourceImage=img;
+      dropZone.innerHTML=`<div class="icon">✅</div><p>${file.name} (${img.width}×${img.height})</p>`;
+      document.getElementById('generateBtn').disabled=false;
+    };
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+document.getElementById('maxColors').addEventListener('input',e=>{
+  document.getElementById('maxColorsVal').textContent=e.target.value;
+});
+
+document.getElementById('generateBtn').addEventListener('click',processImage);
+
+document.getElementById('downloadPng').addEventListener('click',()=>{
+  if(!lastResult)return;
+  const canvas=document.getElementById('previewCanvas');
+  const link=document.createElement('a');
+  link.download=`pixelbead-${lastResult.size}x${lastResult.size}.png`;
+  link.href=canvas.toDataURL('image/png');
+  link.click();
+});
+
+document.getElementById('downloadPdf').addEventListener('click',()=>{
+  if(!lastResult)return;
+  const{jsPDF}=window.jspdf;
+  const canvas=document.getElementById('previewCanvas');
+  const pdf=new jsPDF({orientation:canvas.width>canvas.height?'l':'p',unit:'px',format:[canvas.width+40,canvas.height+80]});
+  pdf.setFontSize(16);
+  pdf.text(`PixelBead ${lastResult.size}x${lastResult.size} - ${PALETTES[lastResult.brand].brandCn}`,20,25);
+  pdf.addImage(canvas.toDataURL('image/png'),'PNG',20,40,canvas.width,canvas.height);
+  pdf.save(`pixelbead-${lastResult.size}x${lastResult.size}.pdf`);
+});
+</script>
+</body>
+</html>
