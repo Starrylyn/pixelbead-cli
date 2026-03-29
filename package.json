@@ -1,5 +1,5 @@
 {
-  "name": "pixelbead",
+  "name": "autoclaw-pixelbead-cli",
   "version": "1.0.0",
   "description": "Convert images into perler bead (拼豆) patterns",
   "main": "dist/index.js",
