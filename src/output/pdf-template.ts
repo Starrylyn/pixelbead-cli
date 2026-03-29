@@ -21,6 +21,8 @@ export interface PdfOptions {
   boardHeight?: number;
   multiBoard?: boolean;
   brand?: string;
+  showLegend?: boolean;
+  showMaterials?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -413,6 +415,8 @@ export async function renderPdfTemplate(
   const brand = options?.brand ?? '';
 
   const resolvedOptions = { pageSize, boardWidth, boardHeight, multiBoard, brand } as const;
+  const showLegend = options?.showLegend !== false;
+  const showMaterials = options?.showMaterials !== false;
 
   const doc = new PDFDocument({
     size: pageSize,
@@ -432,7 +436,9 @@ export async function renderPdfTemplate(
     doc.pipe(stream);
 
     // 1. Title page (uses the auto-created first page)
-    drawTitlePage(doc, pattern, resolvedOptions);
+    if (showLegend || showMaterials) {
+      drawTitlePage(doc, pattern, resolvedOptions);
+    }
 
     // 2. Grid pages
     drawGridPages(doc, pattern, resolvedOptions);

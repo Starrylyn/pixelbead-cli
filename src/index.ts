@@ -29,7 +29,11 @@ program
   .option('--multi-board', 'Enable multi-board tiling for large images')
   .option('--materials-only', 'Only output the material list')
   .option('--no-labels', 'Hide color codes in grid cells (preview mode)')
+  .option('--no-legend', 'Hide color legend in PNG/PDF output')
+  .option('--no-materials', 'Hide materials list in PNG/PDF output')
+  .option('--clean', 'Clean output: no labels, no legend, no materials (image only)')
   .action(async (input: string, opts: Record<string, unknown>) => {
+    const isClean = opts.clean as boolean | undefined;
     const options: ConvertOptions = {
       brand: (opts.brand as string || 'artkal') as BrandName,
       board: opts.board as string || '29x29',
@@ -42,7 +46,9 @@ program
       colors: opts.colors as string | undefined,
       multiBoard: opts.multiBoard as boolean | undefined,
       materialsOnly: opts.materialsOnly as boolean | undefined,
-      noLabels: opts.labels === false ? true : false,
+      noLabels: isClean || opts.labels === false ? true : false,
+      noLegend: isClean || opts.legend === false ? true : false,
+      noMaterials: isClean || opts.materials === false ? true : false,
     };
     await runConvert(input, options);
   });

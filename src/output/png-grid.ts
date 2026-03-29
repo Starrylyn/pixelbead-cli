@@ -19,6 +19,7 @@ export interface PngGridOptions {
   showCodes?: boolean;     // default true
   showLegend?: boolean;    // default true
   showMaterials?: boolean; // default true
+  showNumbers?: boolean;   // default true — row/col coordinate numbers
   boardWidth?: number;     // for board boundary markers
   boardHeight?: number;
   multiBoard?: boolean;
@@ -98,9 +99,10 @@ function computeLayout(
   cellSize: number,
   showLegend: boolean,
   showMaterials: boolean,
+  showNumbers: boolean,
 ): LayoutMetrics {
   const margin = 20;
-  const numberGutter = 30; // space for row/col numbers
+  const numberGutter = showNumbers ? 30 : 0; // space for row/col numbers
 
   const gridPixelWidth = pattern.width * cellSize;
   const gridPixelHeight = pattern.height * cellSize;
@@ -479,12 +481,13 @@ export async function renderPngGrid(
   const showCodes = options?.showCodes ?? true;
   const showLegend = options?.showLegend ?? true;
   const showMaterials = options?.showMaterials ?? true;
+  const showNumbers = options?.showNumbers ?? true;
   const multiBoard = options?.multiBoard ?? false;
   const boardWidth = options?.boardWidth ?? 29;
   const boardHeight = options?.boardHeight ?? 29;
 
   // ---- Compute layout ----
-  const layout = computeLayout(pattern, cellSize, showLegend, showMaterials);
+  const layout = computeLayout(pattern, cellSize, showLegend, showMaterials, showNumbers);
 
   // ---- Create canvas ----
   const canvas: Canvas = createCanvas(layout.canvasWidth, layout.canvasHeight);
@@ -506,7 +509,9 @@ export async function renderPngGrid(
   }
 
   // ---- Draw row/column numbers ----
-  drawRowColNumbers(ctx, pattern, cellSize, layout.gridOriginX, layout.gridOriginY);
+  if (showNumbers) {
+    drawRowColNumbers(ctx, pattern, cellSize, layout.gridOriginX, layout.gridOriginY);
+  }
 
   // ---- Draw board boundaries if multiBoard ----
   if (multiBoard) {

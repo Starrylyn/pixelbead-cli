@@ -37,6 +37,8 @@ export interface ConvertOptions {
   multiBoard?: boolean;
   materialsOnly?: boolean;
   noLabels?: boolean;
+  noLegend?: boolean;
+  noMaterials?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -209,6 +211,9 @@ export async function runConvert(inputPath: string, options: ConvertOptions): Pr
         boardHeight,
         multiBoard: options.multiBoard,
         showCodes: options.noLabels === undefined ? true : !options.noLabels,
+        showLegend: options.noLegend ? false : true,
+        showMaterials: options.noMaterials ? false : true,
+        showNumbers: options.noLegend && options.noMaterials && options.noLabels ? false : true,
       });
       progress(`PNG saved: ${outputPath}`);
     } else if (ext === '.pdf') {
@@ -218,6 +223,8 @@ export async function runConvert(inputPath: string, options: ConvertOptions): Pr
         boardHeight,
         multiBoard: options.multiBoard,
         brand: options.brand,
+        showLegend: options.noLegend ? false : true,
+        showMaterials: options.noMaterials ? false : true,
       });
       progress(`PDF saved: ${outputPath}`);
     } else {
