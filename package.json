@@ -13,10 +13,10 @@
   },
   "keywords": ["perler", "bead", "pixel", "art", "pattern", "拼豆"],
   "author": "Starrylyn",
-  "homepage": "https://github.com/Starrylyn/pixelbead-cli",
+  "homepage": "https://github.com/Starrylyn/autoclaw-pixelbead-cli",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Starrylyn/pixelbead-cli.git"
+    "url": "https://github.com/Starrylyn/autoclaw-pixelbead-cli.git"
   },
   "license": "MIT",
   "dependencies": {
