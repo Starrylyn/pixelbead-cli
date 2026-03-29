@@ -4,6 +4,8 @@ Convert images into perler bead (拼豆) patterns with accurate color matching.
 
 ![pixelbead demo](https://img.shields.io/badge/pixelbead-CLI-blue)
 
+> Built with [AutoClaw](https://autoglm.zhipuai.cn/autoclaw/) — an AI-powered coding agent.
+
 ## Features
 
 - **Multi-Brand Palettes** — Built-in color databases for Artkal, Hama, Perler, MARD, COCO
@@ -122,3 +124,9 @@ Printable A4 PDF with:
 ## License
 
 MIT
+
+---
+
+<p align="center">
+  Built with 🤖 <a href="https://autoglm.zhipuai.cn/autoclaw/">AutoClaw</a>
+</p>

@@ -12,6 +12,12 @@
     "dev": "ts-node src/index.ts"
   },
   "keywords": ["perler", "bead", "pixel", "art", "pattern", "拼豆"],
+  "author": "Starrylyn",
+  "homepage": "https://github.com/Starrylyn/pixelbead",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Starrylyn/pixelbead.git"
+  },
   "license": "MIT",
   "dependencies": {
     "chalk": "^4.1.2",
