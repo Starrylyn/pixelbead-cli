@@ -245,3 +245,201 @@ export function addOutline(pattern: BeadPattern, palette: BeadColor[]): BeadPatt
 
   return result;
 }
+
+// ---------------------------------------------------------------------------
+// Black outline mode
+// ---------------------------------------------------------------------------
+
+/**
+ * Find the black bead colour from the palette.
+ *
+ * Searches for a bead named "Black" or "Jet Black".  Falls back to the
+ * darkest colour in the palette (lowest L*) if no exact match is found.
+ */
+function findBlackBead(palette: BeadColor[]): BeadColor {
+  // Prefer exact name match.
+  for (const c of palette) {
+    const name = c.nameEn.toLowerCase();
+    if (name === 'black' || name === 'jet black') {
+      return c;
+    }
+  }
+
+  // Fallback: find the darkest bead (lowest lightness).
+  let darkest: BeadColor = palette[0];
+  let darkestL = Infinity;
+
+  for (const c of palette) {
+    const lab = rgbToLab(c.r, c.g, c.b);
+    if (lab.L < darkestL) {
+      darkestL = lab.L;
+      darkest = c;
+    }
+  }
+
+  return darkest;
+}
+
+/**
+ * Add a black outline around colour edges by expanding the pattern outward.
+ *
+ * Algorithm:
+ *   1. Detect colour edges (CIEDE2000 > {@link EDGE_COLOR_THRESHOLD}).
+ *   2. Build a set of "outline positions" — for every edge cell, each
+ *      4-connected neighbour direction that is *outside* the non-transparent
+ *      subject (grid boundary or transparent neighbour) gets a black bead
+ *      placed one step further out.
+ *   3. Create an expanded grid (+2 width, +2 height), copy the original
+ *      pattern into the centre (offset 1,1), and fill outline positions
+ *      with black beads.
+ *
+ * The result is a pattern that is 2 beads wider and 2 beads taller than the
+ * input, with black beads forming a clear outline around the subject
+ * boundary.  Internal colour boundaries between two non-transparent regions
+ * are *not* outlined (use the regular {@link addOutline} for that).
+ *
+ * The input pattern is **not** mutated.
+ *
+ * @param pattern The input bead pattern.
+ * @param palette The full bead palette (used to locate the black bead).
+ * @returns A new, expanded BeadPattern with black outline beads inserted.
+ */
+export function addBlackOutline(
+  pattern: BeadPattern,
+  palette: BeadColor[],
+): BeadPattern {
+  const { width, height, grid } = pattern;
+  const black = findBlackBead(palette);
+
+  // Create a transparent placeholder bead for empty border cells.
+  const transparentBead: BeadColor = {
+    brand: black.brand,
+    code: '__transparent__',
+    nameEn: 'Transparent',
+    nameCn: '透明',
+    hex: '#000000',
+    r: 0,
+    g: 0,
+    b: 0,
+  };
+
+  // Expanded dimensions: +1 on each side.
+  const newWidth = width + 2;
+  const newHeight = height + 2;
+
+  // Initialize expanded grid with transparent placeholders.
+  const newGrid: BeadColor[][] = [];
+  for (let y = 0; y < newHeight; y++) {
+    const row: BeadColor[] = [];
+    for (let x = 0; x < newWidth; x++) {
+      row.push({ ...transparentBead });
+    }
+    newGrid.push(row);
+  }
+
+  // Copy original pattern into the centre (offset by 1,1).
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      newGrid[y + 1][x + 1] = { ...grid[y][x] };
+    }
+  }
+
+  // For every non-transparent cell, check its 4 neighbours.  If a neighbour
+  // is outside the original grid or is transparent, that direction is an
+  // "exterior edge".  We also check for significant colour differences
+  // (CIEDE2000 > threshold) to catch edges between the subject and a
+  // coloured background.
+  //
+  // For each exterior edge, place a black bead in the expanded grid at the
+  // position one step outside the current cell (which lands in the border
+  // zone, or on a transparent cell).
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const cell = grid[y][x];
+      if (isTransparent(cell)) {
+        continue;
+      }
+
+      const cellLab = rgbToLab(cell.r, cell.g, cell.b);
+
+      for (let d = 0; d < 4; d++) {
+        const nx = x + DX[d];
+        const ny = y + DY[d];
+
+        let isExteriorEdge = false;
+
+        if (nx < 0 || nx >= width || ny < 0 || ny >= height) {
+          // Neighbour is outside the original grid boundary.
+          isExteriorEdge = true;
+        } else {
+          const neighbour = grid[ny][nx];
+          if (isTransparent(neighbour)) {
+            isExteriorEdge = true;
+          } else {
+            // Check colour difference — a large difference against a
+            // background region also counts as an exterior edge.
+            const neighbourLab = rgbToLab(neighbour.r, neighbour.g, neighbour.b);
+            if (ciede2000(cellLab, neighbourLab) > EDGE_COLOR_THRESHOLD) {
+              isExteriorEdge = true;
+            }
+          }
+        }
+
+        if (isExteriorEdge) {
+          // Position in expanded grid: the neighbour's position.
+          const expX = nx + 1;
+          const expY = ny + 1;
+
+          // Only place black if the expanded-grid cell is still transparent
+          // (don't overwrite original beads that were copied in).
+          if (
+            expX >= 0 && expX < newWidth &&
+            expY >= 0 && expY < newHeight &&
+            isTransparentOrPlaceholder(newGrid[expY][expX])
+          ) {
+            newGrid[expY][expX] = { ...black };
+          }
+        }
+      }
+    }
+  }
+
+  // Build colour counts for the new grid.
+  const colorCounts = new Map<string, { color: BeadColor; count: number }>();
+  let totalBeads = 0;
+
+  for (let y = 0; y < newHeight; y++) {
+    for (let x = 0; x < newWidth; x++) {
+      const cell = newGrid[y][x];
+      if (!isTransparentOrPlaceholder(cell)) {
+        totalBeads++;
+        const key = `${cell.brand}:${cell.code}`;
+        const existing = colorCounts.get(key);
+        if (existing) {
+          existing.count++;
+        } else {
+          colorCounts.set(key, { color: { ...cell }, count: 1 });
+        }
+      }
+    }
+  }
+
+  return {
+    width: newWidth,
+    height: newHeight,
+    grid: newGrid,
+    colorCounts,
+    totalBeads,
+  };
+}
+
+/**
+ * Check whether a bead is transparent or the internal placeholder used
+ * during grid expansion.
+ */
+function isTransparentOrPlaceholder(bead: BeadColor): boolean {
+  if (bead.code === '__transparent__') {
+    return true;
+  }
+  return isTransparent(bead);
+}

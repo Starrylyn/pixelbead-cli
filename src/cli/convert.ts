@@ -14,7 +14,7 @@ import { imageToGrid, parseBoardSize } from '../core/image-loader';
 import { matchColors, matchColorsWithLimit, filterPaletteBySubset, applyDithering } from '../core/color-matcher';
 import { cleanNoise } from '../core/noise-cleaner';
 import { removeBackground } from '../core/background-remover';
-import { addOutline } from '../core/outline';
+import { addOutline, addBlackOutline } from '../core/outline';
 import { generateMaterialList, formatMaterialListText } from '../core/materials';
 import { renderTerminalPreview, renderTerminalMaterialList } from '../output/terminal';
 import { renderPngGrid } from '../output/png-grid';
@@ -33,6 +33,7 @@ export interface ConvertOptions {
   removeBg?: boolean;
   dither?: boolean;
   outline?: boolean;
+  outlineBlack?: boolean;
   colors?: string;       // comma-separated color codes
   multiBoard?: boolean;
   materialsOnly?: boolean;
@@ -157,6 +158,15 @@ export async function runConvert(inputPath: string, options: ConvertOptions): Pr
     if (options.outline) {
       progress('Adding outline enhancement...');
       pattern = addOutline(pattern, paletteColors);
+    }
+
+    // ------------------------------------------------------------------
+    // 9b. Black outline (optional, expands pattern by 1 bead each side)
+    // ------------------------------------------------------------------
+
+    if (options.outlineBlack) {
+      progress('Adding black outline (pattern will expand by 2 beads)...');
+      pattern = addBlackOutline(pattern, paletteColors);
     }
 
     // ------------------------------------------------------------------
