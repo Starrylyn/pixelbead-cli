@@ -245,6 +245,37 @@ export function parseBoardSize(spec: string): BoardSize {
 }
 
 // ---------------------------------------------------------------------------
+// Adaptive intermediate scale factor
+// ---------------------------------------------------------------------------
+
+/**
+ * Determine the intermediate resize multiplier based on board dimensions.
+ *
+ * Smaller boards benefit from a higher multiplier so that each cell in the
+ * intermediate image contains more source pixels, preserving fine details
+ * during dominant-colour extraction.
+ *
+ * - Small boards  (<= 39x39): 8x
+ * - Medium boards (<= 80x80): 6x
+ * - Large boards  (> 80x80):  5x
+ *
+ * @param boardWidth  Number of bead columns.
+ * @param boardHeight Number of bead rows.
+ * @returns The integer multiplier to apply.
+ */
+function getIntermediateScale(boardWidth: number, boardHeight: number): number {
+  const maxDim = Math.max(boardWidth, boardHeight);
+
+  if (maxDim <= 39) {
+    return 8;
+  }
+  if (maxDim <= 80) {
+    return 6;
+  }
+  return 5;
+}
+
+// ---------------------------------------------------------------------------
 // High-level: image -> PixelGrid
 // ---------------------------------------------------------------------------
 
@@ -258,9 +289,10 @@ export function parseBoardSize(spec: string): BoardSize {
  * after the resize, is a single pixel per cell --- but the bucketing still
  * applies to the pre-resize image when cell sizes are larger than 1:1).
  *
- * For the common path where we want a clean dominant-colour grid, we resize
- * the image to a larger intermediate (3x the grid size) so that each cell
- * still has multiple source pixels for the bucketing algorithm to work with.
+ * The intermediate size is determined adaptively by
+ * {@link getIntermediateScale}: smaller boards use a higher multiplier so that
+ * each cell has more source pixels for the bucketing algorithm, preserving
+ * more of the original image's detail.
  *
  * @param filePath    Path to the source image.
  * @param boardWidth  Number of bead columns.
@@ -277,11 +309,13 @@ export async function imageToGrid(
     throw new Error(`Image file not found: ${filePath}`);
   }
 
-  // Resize to an intermediate that is 3x the target grid so that each cell
-  // still covers a small region of pixels, giving the bucketing algorithm
-  // enough data to pick a dominant colour instead of just a single pixel.
-  const intermediateWidth = boardWidth * 3;
-  const intermediateHeight = boardHeight * 3;
+  // Resize to an intermediate that is Nx the target grid (adaptive) so that
+  // each cell still covers a small region of pixels, giving the bucketing
+  // algorithm enough data to pick a dominant colour instead of just a single
+  // pixel.
+  const scale = getIntermediateScale(boardWidth, boardHeight);
+  const intermediateWidth = boardWidth * scale;
+  const intermediateHeight = boardHeight * scale;
 
   try {
     const { data, info } = await sharp(filePath)
