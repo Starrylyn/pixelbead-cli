@@ -419,3 +419,135 @@ export function applyDithering(
 
   return { width, height, pixels: result };
 }
+
+// ---------------------------------------------------------------------------
+// Color minimization
+// ---------------------------------------------------------------------------
+
+/** Default maximum CIEDE2000 distance for merging two colours. */
+const MINIMIZE_MERGE_THRESHOLD = 25;
+
+/**
+ * Reduce the number of distinct bead colours in a pattern by iteratively
+ * merging the two perceptually closest colours.
+ *
+ * Algorithm:
+ *   1. Collect current colour usage from the pattern's `colorCounts`.
+ *   2. Sort by usage (ascending — least-used colours are merge candidates).
+ *   3. Find the pair of colours with the smallest CIEDE2000 distance.
+ *   4. Replace all beads of the less-used colour with the more-used colour.
+ *   5. Repeat until `colorCounts.size <= targetCount` or the smallest
+ *      pairwise distance exceeds `mergeThreshold` (default 25).
+ *
+ * The input pattern is **not** mutated; a deep copy is returned.
+ *
+ * @param pattern        The input bead pattern.
+ * @param targetCount    Desired maximum number of distinct colours.
+ * @param mergeThreshold Maximum CIEDE2000 distance for a merge (default 25).
+ * @returns A new BeadPattern with reduced colour count.
+ */
+export function minimizeColors(
+  pattern: BeadPattern,
+  targetCount: number,
+  mergeThreshold: number = MINIMIZE_MERGE_THRESHOLD,
+): BeadPattern {
+  // Deep-clone the grid so we don't mutate the original.
+  const { width, height } = pattern;
+  const grid: BeadColor[][] = pattern.grid.map((row) =>
+    row.map((cell) => ({ ...cell })),
+  );
+
+  // Build a mutable map of currently used colours and their counts.
+  let colorMap = new Map<string, { color: BeadColor; count: number }>();
+  for (const [key, value] of pattern.colorCounts) {
+    colorMap.set(key, { color: { ...value.color }, count: value.count });
+  }
+
+  // Pre-compute Lab values for all used colours.
+  const labMap = new Map<string, Lab>();
+  for (const [key, { color }] of colorMap) {
+    labMap.set(key, rgbToLab(color.r, color.g, color.b));
+  }
+
+  // Iteratively merge until target is met or threshold exceeded.
+  while (colorMap.size > targetCount) {
+    const codes = Array.from(colorMap.keys());
+    if (codes.length <= 1) break;
+
+    // Find the closest pair of colours.
+    let bestDist = Infinity;
+    let mergeFrom = '';  // less-used colour (will be replaced)
+    let mergeInto = '';  // more-used colour (will absorb)
+
+    for (let i = 0; i < codes.length; i++) {
+      const labI = labMap.get(codes[i])!;
+      const countI = colorMap.get(codes[i])!.count;
+
+      for (let j = i + 1; j < codes.length; j++) {
+        const labJ = labMap.get(codes[j])!;
+        const dist = ciede2000(labI, labJ);
+
+        if (dist < bestDist) {
+          bestDist = dist;
+          const countJ = colorMap.get(codes[j])!.count;
+
+          // The less-used colour merges into the more-used one.
+          if (countI <= countJ) {
+            mergeFrom = codes[i];
+            mergeInto = codes[j];
+          } else {
+            mergeFrom = codes[j];
+            mergeInto = codes[i];
+          }
+        }
+      }
+    }
+
+    // Stop if the closest pair exceeds the merge threshold.
+    if (bestDist > mergeThreshold) {
+      break;
+    }
+
+    // Perform the merge: replace all beads of `mergeFrom` with `mergeInto`.
+    const targetColor = colorMap.get(mergeInto)!.color;
+
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const cell = grid[y][x];
+        const cellKey = cell.code;
+        if (cellKey === colorMap.get(mergeFrom)?.color.code) {
+          grid[y][x] = { ...targetColor };
+        }
+      }
+    }
+
+    // Update counts.
+    const fromEntry = colorMap.get(mergeFrom)!;
+    const intoEntry = colorMap.get(mergeInto)!;
+    intoEntry.count += fromEntry.count;
+
+    // Remove the merged colour.
+    colorMap.delete(mergeFrom);
+    labMap.delete(mergeFrom);
+  }
+
+  // Rebuild colorCounts from the final grid to ensure consistency.
+  const finalColorCounts = new Map<string, { color: BeadColor; count: number }>();
+  let totalBeads = 0;
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const cell = grid[y][x];
+      totalBeads++;
+      const key = cell.code;
+      const existing = finalColorCounts.get(key);
+      if (existing) {
+        existing.count++;
+      } else {
+        finalColorCounts.set(key, { color: { ...cell }, count: 1 });
+      }
+    }
+  }
+
+  return { width, height, grid, colorCounts: finalColorCounts, totalBeads };
+}

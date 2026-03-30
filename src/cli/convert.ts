@@ -11,7 +11,7 @@ import * as fs from 'fs';
 import { getPalette, BrandName } from '../palettes';
 import { BeadColor } from '../palettes/types';
 import { imageToGrid, parseBoardSize } from '../core/image-loader';
-import { matchColors, matchColorsWithLimit, filterPaletteBySubset, applyDithering } from '../core/color-matcher';
+import { matchColors, matchColorsWithLimit, filterPaletteBySubset, applyDithering, minimizeColors } from '../core/color-matcher';
 import { cleanNoise } from '../core/noise-cleaner';
 import { removeBackground } from '../core/background-remover';
 import { addOutline, addBlackOutline } from '../core/outline';
@@ -34,6 +34,7 @@ export interface ConvertOptions {
   dither?: boolean;
   outline?: boolean;
   outlineBlack?: boolean;
+  minimizeColorsTarget?: number;
   colors?: string;       // comma-separated color codes
   multiBoard?: boolean;
   materialsOnly?: boolean;
@@ -150,6 +151,16 @@ export async function runConvert(inputPath: string, options: ConvertOptions): Pr
     const mergeThreshold = options.mergeThreshold ?? 3;
     progress(`Cleaning noise (threshold=${mergeThreshold})...`);
     pattern = cleanNoise(pattern, mergeThreshold);
+
+    // ------------------------------------------------------------------
+    // 8b. Minimize colors (optional, after noise cleaning)
+    // ------------------------------------------------------------------
+
+    if (options.minimizeColorsTarget !== undefined && options.minimizeColorsTarget > 0) {
+      const target = options.minimizeColorsTarget;
+      progress(`Minimizing colors to ${target} (merging closest pairs)...`);
+      pattern = minimizeColors(pattern, target);
+    }
 
     // ------------------------------------------------------------------
     // 9. Outline enhancement (optional)

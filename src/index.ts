@@ -26,6 +26,7 @@ program
   .option('--dither', 'Enable Floyd-Steinberg dithering')
   .option('--outline', 'Add outline enhancement for better contrast')
   .option('--outline-black', 'Add black outline around edges (expands pattern by 2 beads)')
+  .option('--minimize-colors <n>', 'Merge similar colors down to N distinct colors', parseInt)
   .option('--colors <codes>', 'Comma-separated list of bead color codes to use')
   .option('--multi-board', 'Enable multi-board tiling for large images')
   .option('--materials-only', 'Only output the material list')
@@ -45,6 +46,7 @@ program
       dither: opts.dither as boolean | undefined,
       outline: opts.outline as boolean | undefined,
       outlineBlack: opts.outlineBlack as boolean | undefined,
+      minimizeColorsTarget: opts.minimizeColors as number | undefined,
       colors: opts.colors as string | undefined,
       multiBoard: opts.multiBoard as boolean | undefined,
       materialsOnly: opts.materialsOnly as boolean | undefined,
